@@ -74,3 +74,20 @@ unique_table_column_info_aggressive = [dict(t) for t in {tuple(d.items()) for d 
 formatted_output_aggressive = "schema_name\t\t| table_name\t\t| column_name\n" + "-"*80 + "\n"
 for entry in unique_table_column_info_aggressive:
     formatted_output_aggressive += f"{entry['schema_name']}\t\t| {entry['table_name']}\t\t| {entry['column_name']}\n"
+
+# -----
+import pandas as pd
+
+# Extract table and column information
+table_column_info_aggressive = []
+for part in sql_parts:
+    table_column_info_aggressive.extend(extract_table_columns_aggressive(part))
+
+# Filter out duplicates
+unique_table_column_info_aggressive = [dict(t) for t in {tuple(d.items()) for d in table_column_info_aggressive}]
+
+# Convert the results to a pandas DataFrame
+df_output = pd.DataFrame(unique_table_column_info_aggressive)
+
+df_output
+
