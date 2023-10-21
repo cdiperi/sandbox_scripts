@@ -1,0 +1,30 @@
+def extract_sql_parts_v6(sql):
+    # Regular expression pattern to match subqueries, CTEs, and temp tables
+    pattern = r'\((\s*SELECT[^)]+)\)'
+    
+    # Extract all matches
+    matches = re.findall(pattern, sql, re.IGNORECASE)
+    
+    # Replace matches in the original string with placeholders
+    modified_sql = sql
+    for match in matches:
+        modified_sql = modified_sql.replace(f"({match})", 'PLACEHOLDER', 1)
+    
+    # Remove CTE definitions
+    modified_sql = re.sub(r'WITH[^;]+\s+AS\s+', '', modified_sql, flags=re.IGNORECASE)
+    
+    # Remove AS declarations for subqueries
+    modified_sql = re.sub(r'\s+AS\s+[^,)]+\s+ON', ' ON', modified_sql, flags=re.IGNORECASE)
+    
+    # Split the modified string by placeholders and strip whitespaces
+    remaining_parts = [part.strip() for part in modified_sql.split('PLACEHOLDER') if part.strip()]
+    
+    # Consolidate the remaining parts into a single string
+    remaining_string = ' '.join(remaining_parts).replace('\n', ' ').strip()
+    
+    # Return all the matches followed by the consolidated string
+    return [match.strip() for match in matches] + [remaining_string]
+
+# Test the function with the provided example
+sql_list_example_v6 = extract_sql_parts_v6(sql_example)
+sql_list_example_v6
