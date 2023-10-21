@@ -1,93 +1,53 @@
+import re
+import pandas as pd
+
+# Function to Remove Multi-line Comments
 def remove_multiline_comments(sql):
-    # Regular expression pattern to match multi-line comments
     pattern = r'/\*.*?\*/'
-    # Remove all matches
     no_comments_sql = re.sub(pattern, '', sql, flags=re.DOTALL)
     return no_comments_sql.strip()
 
+# Function to Extract SQL Parts (as you provided)
 def extract_sql_parts_v6(sql):
-    # Regular expression pattern to match subqueries, CTEs, and temp tables
     pattern = r'\((\s*SELECT[^)]+)\)'
-    
-    # Extract all matches
     matches = re.findall(pattern, sql, re.IGNORECASE)
-    
-    # Replace matches in the original string with placeholders
     modified_sql = sql
     for match in matches:
         modified_sql = modified_sql.replace(f"({match})", 'PLACEHOLDER', 1)
-    
-    # Remove CTE definitions
     modified_sql = re.sub(r'WITH[^;]+\s+AS\s+', '', modified_sql, flags=re.IGNORECASE)
-    
-    # Remove AS declarations for subqueries
     modified_sql = re.sub(r'\s+AS\s+[^,)]+\s+ON', ' ON', modified_sql, flags=re.IGNORECASE)
-    
-    # Split the modified string by placeholders and strip whitespaces
     remaining_parts = [part.strip() for part in modified_sql.split('PLACEHOLDER') if part.strip()]
-    
-    # Consolidate the remaining parts into a single string
     remaining_string = ' '.join(remaining_parts).replace('\n', ' ').strip()
-    
-    # Return all the matches followed by the consolidated string
     return [match.strip() for match in matches] + [remaining_string]
 
-def extract_table_columns_aggressive(sql_part):
-    # Extract table references with the format "schema_name.table_name"
+# Improved Function to Extract Table and Column Info
+def extract_table_columns_improved(sql_part):
     table_pattern = r'(?i)([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)'
     tables = re.findall(table_pattern, sql_part)
-    
-    # Extract potential columns which come before the "FROM" keyword
-    column_part = sql_part.split('FROM')[0]
-    
-    # Extract column references and remove common SQL keywords
-    column_pattern = r'(?i)([a-zA-Z_]\w*)'
-    columns = re.findall(column_pattern, column_part)
-    non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
-    columns = [col for col in columns if col.lower() not in non_column_keywords]
-    
     results = []
-    for schema, table in tables:
-        for column in columns:
-            results.append({
-                "schema_name": schema,
-                "table_name": table,
-                "column_name": column
-            })
+    sections = re.split(r'FROM|JOIN', sql_part, flags=re.IGNORECASE)
+    for idx, section in enumerate(sections[:-1]):
+        next_section = sections[idx+1]
+        next_table_match = re.search(table_pattern, next_section)
+        column_pattern = r'(?i)([a-zA-Z_]\w*)'
+        columns = re.findall(column_pattern, section)
+        non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
+        columns = [col for col in columns if col.lower() not in non_column_keywords]
+        if next_table_match:
+            current_schema, current_table = next_table_match.groups()
+            for column in columns:
+                results.append({
+                    "schema_name": current_schema,
+                    "table_name": current_table,
+                    "column_name": column
+                })
     return results
 
-# Remove multi-line comments
+# Main Execution
 cleaned_sql_query = remove_multiline_comments(sql_query)
-
-# Extract SQL parts
 sql_parts = extract_sql_parts_v6(cleaned_sql_query)
-
-# Extract table and column information
-table_column_info_aggressive = []
+table_column_info_improved = []
 for part in sql_parts:
-    table_column_info_aggressive.extend(extract_table_columns_aggressive(part))
-
-# Filter out duplicates
-unique_table_column_info_aggressive = [dict(t) for t in {tuple(d.items()) for d in table_column_info_aggressive}]
-
-# Format the results
-formatted_output_aggressive = "schema_name\t\t| table_name\t\t| column_name\n" + "-"*80 + "\n"
-for entry in unique_table_column_info_aggressive:
-    formatted_output_aggressive += f"{entry['schema_name']}\t\t| {entry['table_name']}\t\t| {entry['column_name']}\n"
-
-# -----
-import pandas as pd
-
-# Extract table and column information
-table_column_info_aggressive = []
-for part in sql_parts:
-    table_column_info_aggressive.extend(extract_table_columns_aggressive(part))
-
-# Filter out duplicates
-unique_table_column_info_aggressive = [dict(t) for t in {tuple(d.items()) for d in table_column_info_aggressive}]
-
-# Convert the results to a pandas DataFrame
-df_output = pd.DataFrame(unique_table_column_info_aggressive)
-
-df_output
-
+    table_column_info_improved.extend(extract_table_columns_improved(part))
+unique_table_column_info_improved = [dict(t) for t in {tuple(d.items()) for d in table_column_info_improved}]
+df_output_improved = pd.DataFrame(unique_table_column_info_improved)
