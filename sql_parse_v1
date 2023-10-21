@@ -4,19 +4,19 @@ from typing import List, Dict, Union
 
 def remove_custom_and_multiline_comments(sql: str) -> str:
     """
-    Remove custom and multi-line comments from a given SQL string.
-    
-    Parameters:
-    - sql (str): Input SQL string.
-    
+    Remove custom and multi-line comments from the given SQL string.
+
+    Args:
+    - sql (str): The SQL query string.
+
     Returns:
-    - str: SQL string with custom and multi-line comments removed.
+    - str: The SQL string without custom and multi-line comments.
     """
-    # Remove custom pattern found at the beginning of some queries
+    # Remove custom pattern ] } } */
     custom_pattern = r'.*?\]\s*}\s*}\s*\*/'
     sql = re.sub(custom_pattern, '', sql, flags=re.DOTALL)
     
-    # Remove standard SQL multi-line comments
+    # Remove multi-line comments
     multiline_pattern = r'/\*.*?\*/'
     sql = re.sub(multiline_pattern, '', sql, flags=re.DOTALL)
     
@@ -24,67 +24,52 @@ def remove_custom_and_multiline_comments(sql: str) -> str:
 
 def extract_sql_parts(sql: str) -> List[str]:
     """
-    Extract different parts (sub-queries) of the SQL query.
-    
-    Parameters:
-    - sql (str): Input SQL string.
-    
+    Extract different parts of the SQL query, especially nested sub-queries.
+
+    Args:
+    - sql (str): The SQL query string.
+
     Returns:
-    - List[str]: List of SQL parts.
+    - List[str]: List of extracted SQL parts.
     """
-    # Detect subqueries enclosed in parentheses
     pattern = r'\((\s*SELECT[^)]+)\)'
     matches = re.findall(pattern, sql, re.IGNORECASE)
-    
-    # Initialize a modified SQL string for further processing
     modified_sql = sql
     for match in matches:
-        # Replace identified subqueries with a placeholder to isolate main query components
         modified_sql = modified_sql.replace(f"({match})", 'PLACEHOLDER', 1)
     
-    # Remove CTE definitions from the SQL string
+    # Remove WITH clause
     modified_sql = re.sub(r'WITH[^;]+\s+AS\s+', '', modified_sql, flags=re.IGNORECASE)
-    
-    # Remove alias declarations for subqueries to simplify extraction
+    # Remove aliasing in JOINs
     modified_sql = re.sub(r'\s+AS\s+[^,)]+\s+ON', ' ON', modified_sql, flags=re.IGNORECASE)
-    
-    # Split the modified SQL string at the placeholder to separate main components and subqueries
     remaining_parts = [part.strip() for part in modified_sql.split('PLACEHOLDER') if part.strip()]
-    
-    # Consolidate the remaining parts of the SQL string
     remaining_string = ' '.join(remaining_parts).replace('\n', ' ').strip()
-    
     return [match.strip() for match in matches] + [remaining_string]
 
-def extract_table_columns_finalized(sql_part: str) -> List[Dict[str, str]]:
+def extract_table_columns_revised(sql_part: str) -> List[Dict[str, str]]:
     """
-    Extract and associate column names with table and schema names from an SQL part.
-    
-    Parameters:
-    - sql_part (str): Part of the SQL query.
-    
+    Extract table and column information from a SQL part.
+
+    Args:
+    - sql_part (str): A part of the SQL query string.
+
     Returns:
-    - List[Dict[str, str]]: List of dictionaries with table schema, table name, and column name.
+    - List[Dict[str, str]]: List of dictionaries containing table schema, table, and column information.
     """
-    # Detect schema and table references in the format "schema_name.table_name"
     table_pattern = r'(?i)([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)'
     tables = re.findall(table_pattern, sql_part)
     results = []
 
-    # List of common SQL keywords that are not column names
     non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
 
-    # Extract potential column names from the SELECT section of the SQL part
+    # Extract potential columns from the SELECT section
     select_section_pattern = r'(?i)SELECT(.*?)FROM'
     select_section_match = re.search(select_section_pattern, sql_part)
-    
     if select_section_match:
         select_section = select_section_match.group(1)
         column_pattern = r'(?i)([a-zA-Z_]\w*)'
         columns = re.findall(column_pattern, select_section)
         columns = [col for col in columns if col.lower() not in non_column_keywords]
-        
-        # Associate detected columns with the identified schema and table from the FROM clause
         if tables:
             table_schema, table = tables[0]
             for column in columns:
@@ -94,13 +79,11 @@ def extract_table_columns_finalized(sql_part: str) -> List[Dict[str, str]]:
                     "column_name": column
                 })
 
-    # Extract potential column names from the rest of the SQL part (excluding the SELECT section)
+    # Extract potential columns from the rest of the SQL part (excluding the SELECT section)
     rest_of_sql = sql_part[select_section_match.end():] if select_section_match else sql_part
     column_pattern = r'(?i)([a-zA-Z_]\w*)'
     columns = re.findall(column_pattern, rest_of_sql)
     columns = [col for col in columns if col.lower() not in non_column_keywords]
-    
-    # Associate detected columns with the last identified schema and table (often the primary table in JOIN operations)
     if tables:
         table_schema, table = tables[-1]
         for column in columns:
@@ -112,19 +95,11 @@ def extract_table_columns_finalized(sql_part: str) -> List[Dict[str, str]]:
 
     return results
 
-# Main Execution
-# Clean the input SQL query to remove custom and multi-line comments
-clean_sql = remove_custom_and_multiline_comments(complex_sql_query)
-
-# Extract different parts (like sub-queries) of the cleaned SQL query
-sql_parts_list_complex = extract_sql_parts(clean_sql)
-
-# Initialize a list to store extracted table and column information
-table_column_info_list_complex = []
-
-# Extract and associate column names with table and schema names for each SQL part
-for part in sql_parts_list_complex:
-    table_column_info_list_complex.extend(extract_table_columns_finalized(part))
-
-# Filter out duplicate entries
-unique_table_column_info_complex = [dict(t) for t in {tuple(d.items()) for d in table_column_info_list_complex}
+# Assuming the SQL query is stored in the variable 'sql_query'
+clean_sql = remove_custom_and_multiline_comments(sql_query)
+sql_parts_list = extract_sql_parts(clean_sql)
+table_column_info_list = []
+for part in sql_parts_list:
+    table_column_info_list.extend(extract_table_columns_revised(part))
+unique_table_column_info = [dict(t) for t in {tuple(d.items()) for d in table_column_info_list}]
+usage_df = pd.DataFrame(unique_table_column_info)
