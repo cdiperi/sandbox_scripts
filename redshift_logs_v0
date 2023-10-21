@@ -1,0 +1,23 @@
+SELECT query, starttime, substring(querytxt, 1, 100) as querytxt
+FROM stl_query
+WHERE querytxt LIKE '%YOUR_QUERY_TEXT%'
+ORDER BY starttime DESC
+LIMIT 10;
+
+WITH scanned_tables AS (
+    SELECT DISTINCT tbl, perm_table_elapsed, perm_table_rows 
+    FROM stl_scan 
+    WHERE query = YOUR_QUERY_ID
+)
+
+SELECT
+    s.tbl,
+    t.schema || '.' || t.table as full_table_name,
+    a.attname as column_name,
+    s.perm_table_elapsed,
+    s.perm_table_rows
+FROM
+    scanned_tables s
+JOIN pg_table_def a ON s.tbl = a.tbl AND a.schemaname NOT IN ('pg_catalog', 'information_schema')
+JOIN svv_table_info t ON t.table_id = s.tbl
+ORDER BY s.tbl, a.attname;
