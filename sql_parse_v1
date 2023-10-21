@@ -1,3 +1,6 @@
+import re
+import pandas as pd
+
 # Function to Remove Multi-line Comments
 def remove_comments(sql):
     pattern = r'/\*.*?\*/'
@@ -23,21 +26,18 @@ def extract_table_columns(sql_part):
     tables = re.findall(table_pattern, sql_part)
     results = []
     sections = re.split(r'FROM|JOIN', sql_part, flags=re.IGNORECASE)
-    for idx, section in enumerate(sections[:-1]):
-        next_section = sections[idx+1]
-        next_table_match = re.search(table_pattern, next_section)
+    for idx, (schema, table) in enumerate(tables):
+        section = sections[idx+1] if idx+1 < len(sections) else sections[-1]
         column_pattern = r'(?i)([a-zA-Z_]\w*)'
         columns = re.findall(column_pattern, section)
         non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
         columns = [col for col in columns if col.lower() not in non_column_keywords]
-        if next_table_match:
-            current_schema, current_table = next_table_match.groups()
-            for column in columns:
-                results.append({
-                    "schema_name": current_schema,
-                    "table_name": current_table,
-                    "column_name": column
-                })
+        for column in columns:
+            results.append({
+                "schema_name": schema,
+                "table_name": table,
+                "column_name": column
+            })
     return results
 
 # Main Execution
@@ -48,5 +48,3 @@ for part in sql_parts_list:
     table_column_info_list.extend(extract_table_columns(part))
 unique_table_column_info = [dict(t) for t in {tuple(d.items()) for d in table_column_info_list}]
 df_output = pd.DataFrame(unique_table_column_info)
-
-df_output
