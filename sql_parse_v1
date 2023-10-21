@@ -1,11 +1,17 @@
 import re
 import pandas as pd
 
-# Function to Remove Multi-line Comments
-def remove_comments(sql):
-    pattern = r'/\*.*?\*/'
-    no_comments_sql = re.sub(pattern, '', sql, flags=re.DOTALL)
-    return no_comments_sql.strip()
+# Function to Remove Custom and Multi-line Comments
+def remove_custom_and_multiline_comments(sql):
+    # Remove custom pattern ] } } */
+    custom_pattern = r'.*?\]\s*}\s*}\s*\*/'
+    sql = re.sub(custom_pattern, '', sql, flags=re.DOTALL)
+    
+    # Remove multi-line comments
+    multiline_pattern = r'/\*.*?\*/'
+    sql = re.sub(multiline_pattern, '', sql, flags=re.DOTALL)
+    
+    return sql.strip()
 
 # Function to Extract SQL Parts
 def extract_sql_parts(sql):
@@ -41,7 +47,7 @@ def extract_table_columns(sql_part):
     return results
 
 # Main Execution
-clean_sql = remove_comments(sql_query)
+clean_sql = remove_custom_and_multiline_comments(sql_query)
 sql_parts_list = extract_sql_parts(clean_sql)
 table_column_info_list = []
 for part in sql_parts_list:
