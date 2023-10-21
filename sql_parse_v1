@@ -27,23 +27,44 @@ def extract_sql_parts(sql):
     return [match.strip() for match in matches] + [remaining_string]
 
 # Function to Extract Table and Column Info
-def extract_table_columns(sql_part):
+def extract_table_columns_revised(sql_part):
     table_pattern = r'(?i)([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)'
     tables = re.findall(table_pattern, sql_part)
     results = []
-    sections = re.split(r'FROM|JOIN', sql_part, flags=re.IGNORECASE)
-    for idx, (schema, table) in enumerate(tables):
-        section = sections[idx+1] if idx+1 < len(sections) else sections[-1]
+
+    non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
+
+    # Extract potential columns from the SELECT section
+    select_section_pattern = r'(?i)SELECT(.*?)FROM'
+    select_section_match = re.search(select_section_pattern, sql_part)
+    if select_section_match:
+        select_section = select_section_match.group(1)
         column_pattern = r'(?i)([a-zA-Z_]\w*)'
-        columns = re.findall(column_pattern, section)
-        non_column_keywords = ["select", "max", "nvl", "as", "on", "and", "or", "in", "like", "between", "not", "is", "null", "from", "where", "group", "by", "order", "having", "join", "left", "right", "inner", "outer", "distinct", "all"]
+        columns = re.findall(column_pattern, select_section)
         columns = [col for col in columns if col.lower() not in non_column_keywords]
+        if tables:
+            schema, table = tables[0]
+            for column in columns:
+                results.append({
+                    "schema_name": schema,
+                    "table_name": table,
+                    "column_name": column
+                })
+
+    # Extract potential columns from the rest of the SQL part (excluding the SELECT section)
+    rest_of_sql = sql_part[select_section_match.end():] if select_section_match else sql_part
+    column_pattern = r'(?i)([a-zA-Z_]\w*)'
+    columns = re.findall(column_pattern, rest_of_sql)
+    columns = [col for col in columns if col.lower() not in non_column_keywords]
+    if tables:
+        schema, table = tables[-1]
         for column in columns:
             results.append({
                 "schema_name": schema,
                 "table_name": table,
                 "column_name": column
             })
+
     return results
 
 # Main Execution
@@ -51,6 +72,6 @@ clean_sql = remove_custom_and_multiline_comments(sql_query)
 sql_parts_list = extract_sql_parts(clean_sql)
 table_column_info_list = []
 for part in sql_parts_list:
-    table_column_info_list.extend(extract_table_columns(part))
+    table_column_info_list.extend(extract_table_columns_revised(part))
 unique_table_column_info = [dict(t) for t in {tuple(d.items()) for d in table_column_info_list}]
 df_output = pd.DataFrame(unique_table_column_info)
