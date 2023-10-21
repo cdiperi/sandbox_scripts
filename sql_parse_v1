@@ -1,14 +1,11 @@
-import re
-import pandas as pd
-
 # Function to Remove Multi-line Comments
-def remove_multiline_comments(sql):
+def remove_comments(sql):
     pattern = r'/\*.*?\*/'
     no_comments_sql = re.sub(pattern, '', sql, flags=re.DOTALL)
     return no_comments_sql.strip()
 
-# Function to Extract SQL Parts (as you provided)
-def extract_sql_parts_v6(sql):
+# Function to Extract SQL Parts
+def extract_sql_parts(sql):
     pattern = r'\((\s*SELECT[^)]+)\)'
     matches = re.findall(pattern, sql, re.IGNORECASE)
     modified_sql = sql
@@ -20,8 +17,8 @@ def extract_sql_parts_v6(sql):
     remaining_string = ' '.join(remaining_parts).replace('\n', ' ').strip()
     return [match.strip() for match in matches] + [remaining_string]
 
-# Improved Function to Extract Table and Column Info
-def extract_table_columns_improved(sql_part):
+# Function to Extract Table and Column Info
+def extract_table_columns(sql_part):
     table_pattern = r'(?i)([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)'
     tables = re.findall(table_pattern, sql_part)
     results = []
@@ -44,10 +41,12 @@ def extract_table_columns_improved(sql_part):
     return results
 
 # Main Execution
-cleaned_sql_query = remove_multiline_comments(sql_query)
-sql_parts = extract_sql_parts_v6(cleaned_sql_query)
-table_column_info_improved = []
-for part in sql_parts:
-    table_column_info_improved.extend(extract_table_columns_improved(part))
-unique_table_column_info_improved = [dict(t) for t in {tuple(d.items()) for d in table_column_info_improved}]
-df_output_improved = pd.DataFrame(unique_table_column_info_improved)
+clean_sql = remove_comments(sql_query)
+sql_parts_list = extract_sql_parts(clean_sql)
+table_column_info_list = []
+for part in sql_parts_list:
+    table_column_info_list.extend(extract_table_columns(part))
+unique_table_column_info = [dict(t) for t in {tuple(d.items()) for d in table_column_info_list}]
+df_output = pd.DataFrame(unique_table_column_info)
+
+df_output
